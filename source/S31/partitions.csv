@@ -1,0 +1,10 @@
+# Goumang S31 partition table (16 MB flash, 0x1000000)
+# Name,   Type, SubType, Offset,   Size,     Flags
+nvs,      data, nvs,     0x9000,   0x6000,
+phy_init, data, phy,     0xf000,   0x1000,
+factory,  app,  factory, 0x10000,  0x500000,
+voice,    data, spiffs,  0x510000, 0x200000,
+storage,  data, spiffs,  0x710000, 0x100000,
+human_face_det, data, spiffs, 0x810000, 0x40000,
+human_face_feat, data, spiffs, 0x850000, 0x180000,
+coco_det, data, spiffs,  0x9d0000, 0x340000,

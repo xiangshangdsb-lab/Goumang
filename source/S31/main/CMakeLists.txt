@@ -1,0 +1,55 @@
+idf_component_register(
+    SRCS
+        "main.c"
+        "perception/app_video.c"
+        "perception/camera_app.c"
+        "diagnostics/c30d_monitor.c"
+        "control/control.c"
+        "network/device_auth.c"
+        "network/device_auth_store.c"
+        "perception/face_service.cpp"
+        "perception/object_service.cpp"
+        "transport/robot_link.c"
+        "audio/voice_player.c"
+        "audio/voice_wav.c"
+        "diagnostics/selftest_policy.c"
+        "diagnostics/startup_selftest.c"
+        "interface/panel/ui.c"
+        "network/wifi_mgr.c"
+        "interface/web/web_server.c"
+        "agent/agent_service.c"
+        "agent/agent_policy.c"
+        "agent/agent_runtime.c"
+        "agent/agent_runtime_hw.c"
+        "app/app_state.c"
+        "bus/robot_bus.c"
+        "bus/robot_bus_port.c"
+        "app/robot_services.c"
+        "perception/vision.c"
+        "control/line_follower.c"
+        "protocol/robot_protocol.c"
+        "interface/panel/fonts/td_font_16.c"
+        "interface/panel/fonts/td_font_24.c"
+    INCLUDE_DIRS "."
+    REQUIRES
+        esp_driver_ppa
+        esp_driver_uart
+        spiffs
+        esp_codec_dev
+        esp_wifi
+        esp_netif
+        nvs_flash
+        esp_http_server
+        esp_http_client
+        esp-tls
+        espressif__cjson
+        espressif__esp_new_jpeg
+        mbedtls
+        esp_timer
+        esp_event
+        esp32_s31_korvo_1
+        human_face_detect
+        human_face_recognition
+        coco_detect
+    EMBED_FILES "interface/web/dashboard.html"
+)

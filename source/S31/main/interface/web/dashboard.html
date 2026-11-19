@@ -1,0 +1,1413 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>句芒 S31 视觉巡检台</title>
+  <link rel="icon" href="data:,">
+  <style>
+    :root {
+      --bg:#050a07; --panel:#0d1c15; --panel2:#102219;
+      --line:#254438; --text:#edf8f1; --muted:#8eaa9b;
+      --green:#63e69a; --amber:#f4c85b; --red:#ff6b61;
+      --blue:#65b8ff; --cyan:#55d9cf;
+    }
+    * { box-sizing:border-box; }
+    body {
+      margin:0; min-height:100vh; color:var(--text); background:var(--bg);
+      font-family:"Microsoft YaHei",system-ui,sans-serif;
+    }
+    header {
+      position:sticky; top:0; z-index:10; display:flex;
+      justify-content:space-between; align-items:center; gap:12px;
+      padding:13px 20px; border-bottom:1px solid var(--line);
+      background:rgba(5,10,7,.94); backdrop-filter:blur(10px);
+    }
+    h1 { margin:0; font-size:20px; }
+    h1 span { color:var(--green); }
+    .pills { display:flex; flex-wrap:wrap; gap:6px; }
+    .pill {
+      padding:6px 10px; border:1px solid var(--line); border-radius:999px;
+      color:var(--muted); background:var(--panel); font-size:13px;
+    }
+    .pill.on { color:var(--green); border-color:#347354; }
+    .pill.bad { color:var(--red); border-color:#7d3832; }
+    main { max-width:1180px; margin:auto; padding:16px; }
+    .grid { display:grid; grid-template-columns:1.35fr .65fr; gap:16px; }
+    .stack { display:grid; gap:16px; align-content:start; }
+    .panel {
+      border:1px solid var(--line); border-radius:16px; padding:14px;
+      background:linear-gradient(180deg,var(--panel2),var(--panel));
+    }
+    .panel h2 { margin:0 0 11px; color:#c4e5d3; font-size:15px; }
+    .camera-wrap {
+      position:relative; overflow:hidden; border-radius:11px;
+      border:1px solid #1d382b; background:#000; aspect-ratio:4/3;
+    }
+    .camera {
+      display:block; width:100%; height:100%; object-fit:contain;
+      background:#000;
+    }
+    .camera-missing {
+      position:absolute; inset:0; display:none; place-items:center;
+      padding:20px; color:var(--muted); text-align:center;
+      background:#000;
+    }
+    .camera-wrap.missing .camera { visibility:hidden; }
+    .camera-wrap.missing .camera-missing { display:grid; }
+    .url {
+      margin-top:9px; padding:9px 11px; border-radius:9px;
+      color:var(--blue); background:#091a12; font-family:monospace;
+      overflow-wrap:anywhere;
+    }
+    .metrics { display:grid; grid-template-columns:repeat(4,1fr); gap:9px; }
+    .metric { padding:10px; border:1px solid #1c3428; border-radius:10px; }
+    .metric small { display:block; color:var(--muted); }
+    .metric b { display:block; margin-top:5px; font-size:18px; }
+    .objects {
+      display:flex; flex-wrap:wrap; gap:7px; margin-top:11px;
+      min-height:30px; color:var(--muted); font-size:13px;
+    }
+    .object-chip {
+      padding:5px 9px; border-radius:999px; border:1px solid #315a47;
+      color:#dff7e9; background:#12291e;
+    }
+    .actions { display:grid; grid-template-columns:1fr 1fr; gap:9px; }
+    button {
+      min-height:40px; border:1px solid #315a47; border-radius:10px;
+      color:var(--text); background:#173125; font-size:14px;
+      cursor:pointer; touch-action:manipulation;
+    }
+    button:active { transform:translateY(1px); }
+    button.primary { background:#17452e; border-color:#3c875f; }
+    button.warn { background:#4a3810; border-color:#8d6c23; }
+    button.danger { background:#5a1c18; border-color:#9c4038; }
+    .dpad {
+      display:grid; grid-template-columns:repeat(3,64px);
+      justify-content:center; gap:7px; margin:10px 0;
+    }
+    .dpad button {
+      min-height:48px; font-size:19px; touch-action:none;
+      user-select:none; -webkit-user-select:none;
+    }
+    .dpad button.holding {
+      background:#255c3e; border-color:var(--green);
+    }
+    .ghost { visibility:hidden; }
+    .slider-row {
+      display:flex; align-items:center; gap:10px; margin-top:10px;
+      color:var(--muted); font-size:13px;
+    }
+    input[type=range] { flex:1; accent-color:var(--green); }
+    .statusline {
+      color:var(--muted); font-size:13px; line-height:1.75;
+      white-space:pre-line;
+    }
+    .face-panel { margin-top:16px; }
+    .face-head {
+      display:flex; justify-content:space-between; align-items:center;
+      gap:12px; margin-bottom:12px;
+    }
+    .face-count {
+      padding:6px 12px; border:1px solid #315a47; border-radius:999px;
+      color:var(--blue); background:#0a1a12; white-space:nowrap;
+    }
+    .face-grid {
+      display:grid; grid-template-columns:minmax(280px,.8fr) 1.2fr; gap:14px;
+    }
+    .face-camera { aspect-ratio:4/3; }
+    .face-controls { display:flex; flex-wrap:wrap; gap:8px; margin-top:10px; }
+    .face-controls button { flex:1 1 110px; }
+    .face-status {
+      margin-top:9px; min-height:24px; color:#d3e5da;
+      font-size:13px; line-height:1.6;
+    }
+    .table-wrap {
+      overflow:auto; border:1px solid var(--line); border-radius:11px;
+      max-height:346px; background:#09150f;
+    }
+    table { width:100%; border-collapse:collapse; font-size:13px; }
+    th,td { padding:10px 12px; text-align:left; border-bottom:1px solid #1b3126; }
+    th { color:var(--muted); font-weight:500; background:#0d1d16; }
+    td.ok { color:var(--green); }
+    .empty { padding:26px 12px; color:var(--muted); text-align:center; }
+    .hint { color:var(--muted); font-size:12px; margin-top:9px; }
+    .terminal-grid {
+      display:grid; grid-template-columns:1.05fr .95fr; gap:14px;
+    }
+    .chat-log {
+      height:260px; overflow:auto; padding:10px; border-radius:11px;
+      border:1px solid var(--line); background:#07120c; line-height:1.55;
+      white-space:pre-wrap; font-size:13px;
+    }
+    .chat-user { margin:8px 0; color:var(--blue); }
+    .chat-bot { margin:8px 0; color:var(--text); }
+    .chat-tools { margin:4px 0; color:var(--amber); font-size:12px; }
+    textarea,input[type=text],input[type=password] {
+      width:100%; min-height:42px; padding:9px 10px; border-radius:9px;
+      border:1px solid #315a47; color:var(--text); background:#08150e;
+      font:inherit;
+    }
+    textarea { min-height:76px; resize:vertical; }
+    .field { display:grid; gap:7px; margin-bottom:9px; }
+    .field label { color:var(--muted); font-size:12px; }
+    .network-actions { display:grid; grid-template-columns:1fr 1fr; gap:8px; }
+    .scan-list {
+      max-height:150px; overflow:auto; border:1px solid var(--line);
+      border-radius:9px; margin:8px 0; background:#08150e;
+    }
+    .scan-item {
+      display:flex; justify-content:space-between; width:100%; min-height:34px;
+      border:0; border-bottom:1px solid #193326; border-radius:0;
+      background:transparent; padding:7px 9px; text-align:left;
+    }
+    .scan-item:last-child { border-bottom:0; }
+    .scan-item small { color:var(--muted); }
+    .agent-state { color:var(--muted); font-size:12px; margin:8px 0; }
+    .ai-grid { display:grid; grid-template-columns:1.15fr .85fr; gap:14px; }
+    .ai-badge {
+      padding:6px 12px; border:1px solid #315a47; border-radius:999px;
+      background:#0a1a12; color:var(--blue); white-space:nowrap; font-size:13px;
+    }
+    .ai-badge.takeover { color:var(--amber); border-color:#8d6c23; }
+    .ai-meta {
+      display:grid; grid-template-columns:repeat(4,1fr); gap:8px;
+      margin-bottom:10px;
+    }
+    .ai-meta div {
+      padding:9px 10px; border:1px solid #1c3428; border-radius:10px;
+    }
+    .ai-meta small { display:block; color:var(--muted); font-size:12px; }
+    .ai-meta b { display:block; margin-top:4px; font-size:16px; }
+    .ai-qa {
+      min-height:96px; max-height:180px; overflow:auto; padding:10px;
+      border-radius:11px; border:1px solid var(--line); background:#07120c;
+      font-size:13px; line-height:1.65; white-space:pre-wrap;
+      overflow-wrap:anywhere;
+    }
+    .ai-qa .q { color:var(--blue); margin-bottom:8px; }
+    .ai-qa .a { color:var(--text); }
+    .ai-qa .tool {
+      color:var(--amber); margin-top:8px; font-size:12px;
+    }
+    .ai-actions { display:flex; flex-wrap:wrap; gap:8px; margin-top:10px; }
+    .ai-actions button { flex:1 1 140px; }
+    .plan-progress {
+      height:8px; margin:10px 0 2px; border-radius:999px;
+      background:#12301f; overflow:hidden;
+    }
+    .plan-progress i {
+      display:block; height:100%; width:0; background:var(--green);
+    }
+    .param-row {
+      display:grid; grid-template-columns:1.2fr .8fr .9fr .5fr auto;
+      gap:8px; align-items:center; padding:8px 12px;
+      border-bottom:1px solid #193326; font-size:13px;
+    }
+    .param-row:last-child { border-bottom:0; }
+    .param-row input { min-height:34px; padding:5px 8px; }
+    .param-row button { min-height:34px; padding:0 14px; }
+    .param-name { color:#dff7e9; overflow-wrap:anywhere; }
+    .param-range { color:var(--muted); }
+    footer { padding:18px; text-align:center; color:#587665; font-size:12px; }
+    @media(max-width:860px) {
+      .grid, .face-grid, .terminal-grid, .ai-grid { grid-template-columns:1fr; }
+      header { align-items:flex-start; flex-direction:column; }
+      .metrics { grid-template-columns:repeat(2,1fr); }
+      .param-row { grid-template-columns:1fr 1fr; }
+    }
+  </style>
+</head>
+<body>
+<header>
+  <h1>句芒 <span>S31 视觉巡检台</span></h1>
+  <div class="pills">
+    <span class="pill" id="mode">连接中</span>
+    <span class="pill" id="face">人脸 --</span>
+    <span class="pill" id="objectsState">物体 --</span>
+    <span class="pill" id="uart">C30D --</span>
+    <span class="pill" id="wifi">热点 --</span>
+  </div>
+</header>
+
+<main>
+  <div class="grid">
+    <div class="stack">
+      <section class="panel">
+        <h2>DVP 实时画面 / 本地视觉</h2>
+        <div class="camera-wrap" id="cameraWrap">
+          <img class="camera" id="camera" alt="摄像头实时画面">
+          <div class="camera-missing">
+            <div>摄像头画面未就绪<br>请检查 FFC 排线、摄像头模组与供电</div>
+          </div>
+        </div>
+        <div class="url" id="url">http://192.168.4.1</div>
+      </section>
+
+      <section class="panel">
+        <div class="metrics">
+          <div class="metric"><small>视觉帧率</small><b id="fps">--</b></div>
+          <div class="metric"><small>巡线偏差</small><b id="error">--</b></div>
+          <div class="metric"><small>物体检测</small><b id="objectCount">--</b></div>
+          <div class="metric"><small>障碍距离</small><b id="distance">--</b></div>
+        </div>
+        <div class="objects" id="objects">等待 COCO 模型...</div>
+      </section>
+    </div>
+
+    <div class="stack">
+      <section class="panel">
+        <h2>巡检控制</h2>
+        <div class="actions">
+          <button class="primary" onclick="act('/api/start?speed='+trackSpeed())">开始巡线</button>
+          <button onclick="act('/api/stop')">停车</button>
+          <button class="warn" onclick="act('/api/inspect')">执行检测</button>
+          <button onclick="act('/api/clear')">解除急停</button>
+        </div>
+        <button class="danger" style="width:100%;margin-top:9px"
+          onclick="act('/api/estop')">紧急停车</button>
+        <button style="width:100%;margin-top:9px"
+          onclick="act('/api/say?clip=say_test')">语音播报测试</button>
+        <button style="width:100%;margin-top:9px"
+          onclick="location.href='/api/c30d.csv'">下载C30D诊断记录</button>
+      </section>
+
+      <section class="panel">
+        <h2>手动履带控制（按住持续）</h2>
+        <div class="slider-row">
+          <label for="trackSpeed">履带速度</label>
+          <select id="trackSpeed">
+            <option value="15">15%</option><option value="20">20%</option>
+            <option value="25">25%</option><option value="30">30%</option>
+            <option value="35">35%</option><option value="40">40%</option>
+            <option value="45">45%</option><option value="50">50%</option>
+            <option value="55">55%</option><option value="60">60%</option>
+            <option value="65">65%</option><option value="70">70%</option>
+            <option value="75">75%</option><option value="80">80%</option>
+            <option value="85">85%</option><option value="90">90%</option>
+            <option value="95">95%</option><option value="100">100%</option>
+          </select>
+        </div>
+        <div class="dpad">
+          <button class="ghost"></button>
+          <button data-hold-left="42" data-hold-right="42">▲</button>
+          <button class="ghost"></button>
+          <button data-hold-left="-28" data-hold-right="34">◀</button>
+          <button onclick="act('/api/stop')">■</button>
+          <button data-hold-left="34" data-hold-right="-28">▶</button>
+          <button class="ghost"></button>
+          <button data-hold-left="-35" data-hold-right="-35">▼</button>
+          <button class="ghost"></button>
+        </div>
+      </section>
+
+      <section class="panel">
+        <h2>云台与巡线阈值</h2>
+        <div class="actions">
+          <button onclick="actuator(240)">左 240°</button>
+          <button onclick="actuator(270)">居中 270°</button>
+          <button onclick="actuator(300)">右 300°</button>
+          <button class="ghost" onclick="calibratePan()">确认当前位置为正前方</button>
+        </div>
+        <div class="slider-row">
+          <span>云台目标</span>
+          <input id="panTarget" type="range" min="0" max="540" value="270"
+            oninput="document.getElementById('panTargetValue').textContent=this.value+'°'"
+            onchange="actuator(Number(this.value))">
+          <b id="panTargetValue">270°</b>
+        </div>
+        <div class="slider-row">
+          <span>黑线阈值</span>
+          <input id="threshold" type="range" min="10" max="200" value="90"
+            onchange="act('/api/tune?threshold='+this.value)">
+          <b id="thresholdValue">90</b>
+        </div>
+      </section>
+
+      <section class="panel">
+        <div class="statusline" id="details">等待状态...</div>
+      </section>
+    </div>
+  </div>
+
+  <section class="panel face-panel">
+    <div class="face-head">
+      <h2 style="margin:0">人脸登记表</h2>
+      <div class="face-count" id="faceCount">登记人数：0</div>
+    </div>
+    <div class="face-grid">
+      <div>
+        <div class="camera-wrap face-camera" id="faceCameraWrap">
+          <img class="camera" id="faceCamera" alt="人脸登记实时画面">
+          <div class="camera-missing">
+            <div>人脸登记画面未就绪<br>摄像头连接后可在本区域查看实时画面</div>
+          </div>
+        </div>
+        <div class="face-controls">
+          <button class="primary" onclick="act('/api/face/enroll')">拍摄登记</button>
+          <button onclick="act('/api/face/delete')">删除最后</button>
+          <button class="danger" onclick="act('/api/face/clear')">清空人脸库</button>
+        </div>
+        <div class="face-status" id="faceStatus">人脸模型启动中</div>
+        <div class="hint">人脸特征保存在板载存储中，不保存照片。</div>
+      </div>
+      <div>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr><th>编号</th><th>人员</th><th>状态</th><th>最近相似度</th></tr>
+            </thead>
+            <tbody id="faceTable">
+              <tr><td class="empty" colspan="4">暂无登记人员</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="hint">点击“拍摄登记”后，请正对摄像头并保持在画面内。</div>
+      </div>
+    </div>
+  </section>
+
+  <section class="panel face-panel">
+    <div class="face-head">
+      <h2 style="margin:0">智能控制终端</h2>
+      <span class="face-count">DeepSeek Flash · thinking max</span>
+    </div>
+    <div class="terminal-grid">
+      <div>
+        <div class="field">
+          <label>本机网页控制码（显示在 S31“网络设置”屏幕）</label>
+          <input id="controlCode" type="password" autocomplete="off"
+            maxlength="9" placeholder="ABCD-EFGH">
+          <button onclick="saveControlCode()">在本标签页启用控制</button>
+        </div>
+        <div class="hint" id="authState">控制动作需要本机管理码。</div>
+        <div class="chat-log" id="chatLog">
+          <div class="chat-bot">可直接询问机器人状态，或说“低速巡线”“向前走一秒”“停车”“云台向右”。动作会通过受限工具执行。</div>
+        </div>
+        <div class="field" style="margin-top:9px">
+          <textarea id="chatText" placeholder="例如：读取当前CCD与IMU状态，并说明巡线是否正常"></textarea>
+          <button class="primary" onclick="sendAgent()">发送给 S31 大脑</button>
+        </div>
+        <div class="agent-state" id="agentState">正在读取模型状态...</div>
+        <div class="chat-tools" id="agentTools"></div>
+        <details>
+          <summary class="hint">配置 DeepSeek API Key</summary>
+          <div class="field" style="margin-top:8px">
+            <input id="apiKey" type="password" autocomplete="off"
+              placeholder="sk-...（只写入 S31 NVS，不会回显）">
+            <button onclick="saveApiKey()">保存 API Key</button>
+          </div>
+          <div class="hint" id="apiKeyState">等待配置检查</div>
+        </details>
+      </div>
+      <div>
+        <div class="field">
+          <label>当前网络</label>
+          <div class="statusline" id="networkState">读取中...</div>
+        </div>
+        <div class="network-actions">
+          <button style="flex:1" onclick="scanWifi()">扫描 Wi‑Fi</button>
+          <button onclick="setWifiMode('ap')">切换热点</button>
+        </div>
+        <div class="scan-list" id="wifiList">
+          <div class="empty">点击扫描查找路由器</div>
+        </div>
+        <div class="field">
+          <label>路由器 SSID</label>
+          <input id="wifiSsid" type="text" maxlength="32">
+        </div>
+        <div class="field">
+          <label>Wi‑Fi 密码（开放网络留空）</label>
+          <input id="wifiPassword" type="password" maxlength="63">
+        </div>
+        <div class="network-actions">
+          <button class="primary" onclick="connectWifi()">连接路由器</button>
+          <button onclick="setWifiMode('station')">切换到终端</button>
+        </div>
+        <button class="danger" style="width:100%;margin-top:8px"
+          onclick="forgetWifi()">忘记已保存 Wi‑Fi</button>
+        <div class="hint">
+          首次使用或连接失败 20 秒后，S31 会开启
+          <b>Goumang-S31-Setup</b> 配置热点；热点密码和网页控制码显示在
+          S31 的“网络设置”屏幕。普通 STA 模式不常驻热点。
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="panel face-panel">
+    <div class="face-head">
+      <h2 style="margin:0">AI 接管与计划执行</h2>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+        <span class="ai-badge" id="aiModeBadge">MODE: --</span>
+        <span class="face-count" id="aiLease">LEASE: --</span>
+      </div>
+    </div>
+    <div class="ai-grid">
+      <div>
+        <div class="ai-meta">
+          <div><small>计划进度</small><b id="aiPlan">-</b></div>
+          <div><small>被拒动作</small><b id="aiBlocked">0</b></div>
+          <div><small>累计动作</small><b id="aiActions">0</b></div>
+          <div><small>当前工具</small><b id="aiTool">--</b></div>
+        </div>
+        <div class="ai-qa" id="aiQa">
+          <div class="q">最近提问：--</div>
+          <div class="a">最近回复：--</div>
+          <div class="tool">当前动作：--</div>
+        </div>
+        <div class="ai-actions">
+          <button class="primary" id="aiTakeoverBtn"
+            onclick="toggleTakeover()">启用接管 60s</button>
+          <button id="aiLeaseBtn" style="display:none"
+            onclick="renewLease()">续租 30s</button>
+        </div>
+        <div class="hint" id="aiState">
+          接管只能由人开启，需要网页控制码；60 秒租约到期后自动回到 ASSIST。
+        </div>
+      </div>
+      <div>
+        <div class="field">
+          <label>计划步骤 JSON（提交给 S31 本地执行器）</label>
+          <textarea id="planText" spellcheck="false">{"steps":[{"op":"pan","deg":270},{"op":"drive","left":20,"right":20,"ms":800},{"op":"wait","ms":300},{"op":"param","name":"line_turn_gain","value":14},{"op":"capture"}]}</textarea>
+        </div>
+        <div class="network-actions">
+          <button class="primary" onclick="submitPlan()">提交计划</button>
+          <button class="danger" onclick="cancelPlan()">取消计划</button>
+        </div>
+        <div class="plan-progress"><i id="planBar"></i></div>
+        <div class="statusline" id="planState">当前无计划。</div>
+      </div>
+    </div>
+    <div class="face-head" style="margin:16px 0 8px">
+      <h2 style="margin:0;font-size:14px">审计日志（最近 10 条）</h2>
+      <span class="hint" style="margin:0">GET /api/agent/log</span>
+    </div>
+    <div class="table-wrap" style="max-height:220px">
+      <table>
+        <thead>
+          <tr><th>时间 (ms)</th><th>来源</th><th>事件</th><th>详情</th></tr>
+        </thead>
+        <tbody id="aiLogRows">
+          <tr><td class="empty" colspan="4">暂无审计记录</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="panel face-panel">
+    <div class="face-head">
+      <h2 style="margin:0">运行参数</h2>
+      <div style="display:flex;gap:8px;align-items:center">
+        <span class="face-count" id="paramCount">0 项</span>
+        <button style="min-height:34px;padding:0 14px"
+          onclick="refreshParams()">刷新</button>
+      </div>
+    </div>
+    <div class="table-wrap" id="paramList">
+      <div class="empty">参数读取中...</div>
+    </div>
+    <div class="hint" id="paramState">参数写入 C30D 后立即生效并保存到 Flash。</div>
+  </section>
+</main>
+<footer>ESP32-S31 智能控制终端 · C30D 本地执行 CCD / 四路巡线 / 超声融合与轨迹倒放</footer>
+
+<script>
+const $ = (id) => document.getElementById(id);
+let controlToken = '';
+try { controlToken = sessionStorage.getItem('tdControlToken') || ''; } catch (_) {}
+const authHeaders = () => controlToken ?
+  {'X-TD-Token':controlToken} : {};
+const MODE_ZH = {
+  IDLE:'待机', LINE:'巡线', MANUAL:'手动', ESTOP:'急停',
+  AVOID:'避障', INSPECT:'检测'
+};
+let lastFaceCount = -1;
+let lastFaceSimilarity = 0;
+let frameTick = 0;
+let cameraReady = false;
+let agentPollTimer = null;
+
+const pill = (node, text, good, bad) => {
+  node.textContent = text;
+  node.className = 'pill ' + (good ? 'on' : bad ? 'bad' : '');
+};
+
+function faultText(mask) {
+  const names = [];
+  if (mask & 1) names.push('急停');
+  if (mask & 2) names.push('控制超时');
+  if (mask & 4) names.push('云台未归零');
+  if (mask & 8) names.push('运动已锁停');
+  if (mask & 16) names.push('IMU离线');
+  if (mask & 32) names.push('超声波超时/未接');
+  if (mask & 64) names.push('低电压');
+  if (mask & 128) names.push('串口溢出');
+  return names.length ? names.join('、') : '无';
+}
+
+async function act(path) {
+  try {
+    const response = await fetch(path, {
+      method:'POST', headers:authHeaders(), cache:'no-store'
+    });
+    if (response.status === 401) {
+      $('authState').textContent = '控制码无效或未填写，请查看 S31 网络设置屏幕。';
+      return;
+    }
+  } catch (e) {
+    console.log(e);
+  }
+  refresh();
+}
+
+async function saveControlCode() {
+  const value = $('controlCode').value.trim().toUpperCase();
+  if (!/^[A-HJ-NP-Z2-9]{4}-[A-HJ-NP-Z2-9]{4}$/.test(value)) {
+    $('authState').textContent = '格式应为 ABCD-EFGH。';
+    return;
+  }
+  controlToken = value;
+  try {
+    const response = await fetch('/api/auth/check', {
+      headers:authHeaders(), cache:'no-store'
+    });
+    if (!response.ok) {
+      controlToken = '';
+      sessionStorage.removeItem('tdControlToken');
+      $('authState').textContent = '控制码不正确。';
+      return;
+    }
+    sessionStorage.setItem('tdControlToken', controlToken);
+    $('controlCode').value = '';
+    $('authState').textContent = '控制权限已在本标签页启用。';
+    startAgentPolling();
+    refreshAgentStatus();
+    refreshAgentPanel();
+    refreshAgentLog();
+    refreshParams();
+  } catch (_) {
+    controlToken = '';
+    $('authState').textContent = '无法验证控制码。';
+  }
+}
+
+function trackSpeed() {
+  return Number($('trackSpeed').value);
+}
+
+function move(left, right) {
+  act(`/api/move?left=${left}&right=${right}&ms=350`);
+}
+
+let activeMoveButton = null;
+let moveLeaseTimer = null;
+let moveLeaseInFlight = false;
+let moveLeasePromise = null;
+let moveLeaseGeneration = 0;
+
+function enqueueMoveRequest(url) {
+  if (moveLeaseInFlight) return Promise.resolve();
+  moveLeaseInFlight = true;
+  const request = fetch(url, {
+    method:'POST', headers:authHeaders(), cache:'no-store', keepalive:true
+  })
+    .then(response => {
+      if (response.status === 401) {
+        $('authState').textContent = '控制码无效，移动请求已被拒绝。';
+      }
+      return response;
+    })
+    .catch(() => {})
+    .then(result => {
+      moveLeaseInFlight = false;
+      moveLeasePromise = null;
+      return result;
+    });
+  moveLeasePromise = request;
+  return request;
+}
+
+function sendStopRequest() {
+  return fetch('/api/stop', {
+    method:'POST', headers:authHeaders(), cache:'no-store', keepalive:true
+  }).catch(() => {});
+}
+
+function stopHeldMove() {
+  if (moveLeaseTimer !== null) {
+    clearInterval(moveLeaseTimer);
+    moveLeaseTimer = null;
+  }
+  const pendingLease = moveLeasePromise;
+  const hadMotion = activeMoveButton !== null || moveLeaseInFlight;
+  const stoppedGeneration = ++moveLeaseGeneration;
+  if (!hadMotion) return;
+  const button = activeMoveButton;
+  activeMoveButton = null;
+  if (button) button.classList.remove('holding');
+  sendStopRequest();
+  if (pendingLease) {
+    pendingLease.then(() => {
+      if (stoppedGeneration === moveLeaseGeneration) {
+        sendStopRequest();
+      }
+    });
+  }
+}
+
+function bindHoldMove(button) {
+  button.addEventListener('pointerdown', event => {
+    const speed = trackSpeed();
+    const left = Math.trunc(Number(button.dataset.holdLeft) * speed / 42);
+    const right = Math.trunc(Number(button.dataset.holdRight) * speed / 42);
+    if (event.pointerType === 'mouse' && event.button !== 0) return;
+    event.preventDefault();
+    stopHeldMove();
+    ++moveLeaseGeneration;
+    activeMoveButton = button;
+    button.classList.add('holding');
+    try { button.setPointerCapture(event.pointerId); } catch (_) {}
+    const moveUrl = `/api/move?left=${left}&right=${right}&ms=350`;
+    enqueueMoveRequest(moveUrl);
+    moveLeaseTimer = setInterval(() => enqueueMoveRequest(moveUrl), 150);
+  }, {passive:false});
+
+  for (const name of ['pointerup', 'pointercancel', 'lostpointercapture',
+                      'pointerleave']) {
+    button.addEventListener(name, event => {
+      if (activeMoveButton === button) {
+        event.preventDefault();
+        stopHeldMove();
+      }
+    }, {passive:false});
+  }
+  button.addEventListener('contextmenu', event => event.preventDefault());
+}
+
+document.querySelectorAll('[data-hold-left][data-hold-right]')
+  .forEach(bindHoldMove);
+
+window.addEventListener('blur', stopHeldMove);
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden) stopHeldMove();
+});
+window.addEventListener('pagehide', stopHeldMove);
+
+function actuator(pan) {
+  act(`/api/actuator?pan=${pan}`);
+}
+
+function calibratePan() {
+  if (confirm('请先停车并确认镜头已对准物理正前方。将当前位置设为 270°？')) {
+    act('/api/actuator/calibrate');
+  }
+}
+
+async function postJson(path, payload) {
+  const response = await fetch(path, {
+    method:'POST',
+    headers:{'Content-Type':'application/json', ...authHeaders()},
+    body:JSON.stringify(payload),
+    cache:'no-store'
+  });
+  return response.json();
+}
+
+let lastAgentSequence = null;
+let waitingForAgent = false;
+
+function appendChat(kind, text) {
+  const line = document.createElement('div');
+  line.className = kind === 'user' ? 'chat-user' : 'chat-bot';
+  line.textContent = (kind === 'user' ? '你：' : '句芒：') + text;
+  $('chatLog').appendChild(line);
+  $('chatLog').scrollTop = $('chatLog').scrollHeight;
+}
+
+function appendAgentTools(text) {
+  $('agentTools').textContent = text ? '已执行：' + text : '';
+}
+
+async function refreshAgentStatus() {
+  if (!controlToken) {
+    $('agentState').textContent =
+      '请输入控制码以查看 DeepSeek 对话状态。';
+    return;
+  }
+  try {
+    const r = await fetch('/api/agent/status',
+      {cache:'no-store', headers:authHeaders()});
+    if (r.status === 401) {
+      $('agentState').textContent = '请输入控制码以查看 DeepSeek 对话状态。';
+      return;
+    }
+    const s = await r.json();
+    if (lastAgentSequence === null) lastAgentSequence = s.sequence;
+    if (!s.configured) {
+      $('agentState').textContent = '未配置 DeepSeek API Key';
+      $('apiKeyState').textContent = '需要 API Key 才能使用云端大脑';
+    } else if (s.busy) {
+      $('agentState').textContent = 'DeepSeek Flash 深度思考中（max）...';
+      $('apiKeyState').textContent = 'API Key 已配置（内容不回显）';
+    } else {
+      $('agentState').textContent = 'DeepSeek Flash 就绪 · 思考强度 max';
+      $('apiKeyState').textContent = 'API Key 已配置（内容不回显）';
+    }
+    if (s.done && s.sequence > lastAgentSequence) {
+      lastAgentSequence = s.sequence;
+      waitingForAgent = false;
+      appendAgentTools(s.tools || '');
+      if (s.error) appendChat('bot', '错误：' + s.error);
+      else if (s.reply) appendChat('bot', s.reply);
+    }
+  } catch (_) {
+    $('agentState').textContent = '智能终端状态读取失败';
+  }
+}
+
+function startAgentPolling() {
+  if (!controlToken || agentPollTimer !== null) {
+    return;
+  }
+  agentPollTimer = setInterval(refreshAgentStatus, 900);
+}
+
+async function sendAgent() {
+  const text = $('chatText').value.trim();
+  if (!text) return;
+  if (waitingForAgent) {
+    $('agentState').textContent = '上一条请求仍在思考，请稍候';
+    return;
+  }
+  appendChat('user', text);
+  $('chatText').value = '';
+  waitingForAgent = true;
+  try {
+    const result = await postJson('/api/agent/chat', {message:text});
+    if (!result.ok) {
+      waitingForAgent = false;
+      appendChat('bot', '无法启动请求：' + (result.error || '未知错误'));
+    }
+  } catch (_) {
+    waitingForAgent = false;
+    appendChat('bot', '请求发送失败，请检查网络。');
+  }
+}
+
+async function saveApiKey() {
+  const key = $('apiKey').value.trim();
+  if (!key) return;
+  try {
+    const result = await postJson('/api/ai/config', {api_key:key});
+    $('apiKey').value = '';
+    $('apiKeyState').textContent = result.ok ?
+      'API Key 已保存到 S31 NVS' : 'API Key 无效';
+    refreshAgentStatus();
+  } catch (_) {
+    $('apiKeyState').textContent = 'API Key 保存失败';
+  }
+}
+
+/* ---------- AI 接管 / 计划 / 运行参数（v3.10.0） ---------- */
+let agentPanelState = {takeover:false};
+let planId = null;
+let aiAuthMissing = false;
+
+function setAiState(text) {
+  $('aiState').textContent = text;
+}
+
+async function aiGet(path) {
+  const response = await fetch(path, {cache:'no-store', headers:authHeaders()});
+  if (response.status === 401) {
+    const error = new Error('unauthorized');
+    error.unauthorized = true;
+    throw error;
+  }
+  return response.json();
+}
+
+async function aiPost(path, payload) {
+  const response = await fetch(path, {
+    method:'POST',
+    headers:{'Content-Type':'application/json', ...authHeaders()},
+    body:JSON.stringify(payload || {}),
+    cache:'no-store'
+  });
+  if (response.status === 401) {
+    const error = new Error('unauthorized');
+    error.unauthorized = true;
+    throw error;
+  }
+  return response.json();
+}
+
+function textOf(value, fallback) {
+  return (typeof value === 'string' && value.length) ? value : fallback;
+}
+
+function leaseText(ms) {
+  if (!ms || ms <= 0) return 'LEASE: --';
+  return 'LEASE: ' + Math.ceil(ms / 1000) + ' s';
+}
+
+function renderAiQa(state) {
+  const box = $('aiQa');
+  const question = document.createElement('div');
+  question.className = 'q';
+  question.textContent = '最近提问：' + textOf(state.last_user, '--');
+  const reply = document.createElement('div');
+  reply.className = 'a';
+  reply.textContent = '最近回复：' + textOf(state.last_reply, '--');
+  const action = document.createElement('div');
+  action.className = 'tool';
+  action.textContent = '当前动作：' + textOf(state.last_action, '--');
+  box.replaceChildren(question, reply, action);
+}
+
+function updatePlanView(plan) {
+  plan = plan || {};
+  const total = Number(plan.total) || 0;
+  const done = Number(plan.done) || 0;
+  $('aiPlan').textContent = total ? (done + '/' + total) : '-';
+  $('planBar').style.width =
+    (total ? Math.min(100, Math.round(done * 100 / total)) : 0) + '%';
+  if (plan.error) {
+    $('planState').textContent = '计划错误：' + plan.error;
+  } else if (total) {
+    const idText = (plan.id !== undefined && plan.id !== null) ?
+      ('#' + plan.id + ' ') : '';
+    $('planState').textContent = '计划 ' + idText + done + '/' + total +
+      (plan.running ? ' · 执行中' : ' · 已结束');
+  } else {
+    $('planState').textContent = '当前无计划。';
+  }
+}
+
+async function refreshAgentPanel() {
+  try {
+    const state = (await aiGet('/api/agent/state')) || {};
+    agentPanelState = state;
+    const takeover = Boolean(state.takeover);
+    const badge = $('aiModeBadge');
+    badge.textContent = 'MODE: ' + (takeover ? 'TAKEOVER' : 'ASSIST');
+    badge.className = 'ai-badge' + (takeover ? ' takeover' : '');
+    $('aiLease').textContent = leaseText(state.lease_remaining_ms);
+    $('aiBlocked').textContent = String(state.blocked_actions || 0);
+    $('aiActions').textContent = String(state.actions_total || 0);
+    $('aiTool').textContent = textOf(state.last_tool, '--');
+    renderAiQa(state);
+    updatePlanView(state.plan);
+    $('aiTakeoverBtn').textContent =
+      takeover ? '立即退出接管' : '启用接管 60s';
+    $('aiTakeoverBtn').className = takeover ? 'danger' : 'primary';
+    $('aiLeaseBtn').style.display = takeover ? '' : 'none';
+    if (aiAuthMissing) {
+      aiAuthMissing = false;
+      setAiState('控制码已载入，接管功能可用。');
+    }
+  } catch (error) {
+    if (error.unauthorized) {
+      aiAuthMissing = true;
+      $('aiModeBadge').textContent = 'MODE: 需要控制码';
+      $('aiModeBadge').className = 'ai-badge';
+      $('aiLease').textContent = 'LEASE: --';
+      setAiState('控制码无效或已失效，请重新输入。');
+    }
+  }
+}
+
+function normalizeLogEntries(data) {
+  let list = Array.isArray(data) ? data : null;
+  if (!list && data) {
+    list = data.entries || data.log || data.items || data.records || null;
+  }
+  if (!Array.isArray(list)) return [];
+  return list.map(item => {
+    if (typeof item === 'string') {
+      return {time:'', source:'', event:item, detail:''};
+    }
+    if (!item || typeof item !== 'object') {
+      return {time:'', source:'', event:'', detail:''};
+    }
+    return {
+      time: (item.t !== undefined) ? item.t :
+        (item.time !== undefined ? item.time :
+        (item.ts !== undefined ? item.ts : item.at)),
+      source: item.source || item.origin || item.from || '',
+      event: item.event || item.type || item.kind || '',
+      detail: item.detail || item.message || item.msg || ''
+    };
+  });
+}
+
+function logCell(value) {
+  const cell = document.createElement('td');
+  if (value === undefined || value === null) {
+    cell.textContent = '';
+  } else if (typeof value === 'number') {
+    cell.textContent = String(value);
+  } else {
+    cell.textContent = String(value);
+  }
+  return cell;
+}
+
+async function refreshAgentLog() {
+  try {
+    const entries = normalizeLogEntries(await aiGet('/api/agent/log'))
+      .slice(-10).reverse();
+    const body = $('aiLogRows');
+    body.replaceChildren();
+    if (!entries.length) {
+      const row = document.createElement('tr');
+      const cell = document.createElement('td');
+      cell.className = 'empty';
+      cell.colSpan = 4;
+      cell.textContent = '暂无审计记录';
+      row.appendChild(cell);
+      body.appendChild(row);
+      return;
+    }
+    for (const entry of entries) {
+      const row = document.createElement('tr');
+      row.append(logCell(entry.time), logCell(entry.source),
+                 logCell(entry.event), logCell(entry.detail));
+      body.appendChild(row);
+    }
+  } catch (_) {
+    /* 审计日志不可用时保留上一次内容 */
+  }
+}
+
+async function toggleTakeover() {
+  if (!controlToken) {
+    setAiState('请先输入本机网页控制码。');
+    return;
+  }
+  const takeover = Boolean(agentPanelState.takeover);
+  if (!takeover &&
+      !confirm('启用 AI 接管 60 秒？AI 在租约内可以控制机器人运动。')) {
+    return;
+  }
+  if (takeover && !confirm('立即退出接管并停车？')) {
+    return;
+  }
+  try {
+    const result = await aiPost('/api/agent/mode',
+      takeover ? {takeover:false} : {takeover:true, seconds:60});
+    if (!result.ok) {
+      setAiState('切换失败：' + (result.error || 'unknown'));
+      return;
+    }
+    setAiState(takeover ? '已退出接管。' : '已启用接管 60 秒。');
+    refreshAgentPanel();
+  } catch (error) {
+    setAiState(error.unauthorized ? '控制码无效。' : '切换失败：网络异常。');
+  }
+}
+
+async function renewLease() {
+  if (!controlToken) {
+    setAiState('请先输入本机网页控制码。');
+    return;
+  }
+  try {
+    const result = await aiPost('/api/agent/lease', {seconds:30});
+    setAiState(result.ok ? '已续租 30 秒。' :
+      '续租失败：' + (result.error || 'unknown'));
+    refreshAgentPanel();
+  } catch (error) {
+    setAiState(error.unauthorized ? '控制码无效。' : '续租失败：网络异常。');
+  }
+}
+
+async function submitPlan() {
+  if (!controlToken) {
+    $('planState').textContent = '请先输入本机网页控制码。';
+    return;
+  }
+  const text = $('planText').value.trim();
+  if (!text) {
+    $('planState').textContent = '请先填写计划 JSON。';
+    return;
+  }
+  let payload;
+  try {
+    payload = JSON.parse(text);
+  } catch (error) {
+    $('planState').textContent = 'JSON 解析失败：' + error.message;
+    return;
+  }
+  if (!payload || !Array.isArray(payload.steps) || !payload.steps.length) {
+    $('planState').textContent = '需要 {"steps":[...]} 结构且至少一步。';
+    return;
+  }
+  try {
+    const result = await aiPost('/api/agent/plan', payload);
+    if (!result.ok) {
+      $('planState').textContent = '提交失败：' + (result.error || 'unknown') +
+        (result.detail ? ('（' + result.detail + '）') : '');
+      return;
+    }
+    planId = (result.plan_id !== undefined) ? result.plan_id :
+      (result.id !== undefined ? result.id : null);
+    $('planState').textContent = '计划已提交' +
+      (planId !== null ? (' #' + planId) : '') + '，等待执行器推进。';
+    refreshAgentPanel();
+  } catch (error) {
+    $('planState').textContent = error.unauthorized ?
+      '控制码无效。' : '提交失败：网络异常。';
+  }
+}
+
+async function cancelPlan() {
+  if (!controlToken) {
+    $('planState').textContent = '请先输入本机网页控制码。';
+    return;
+  }
+  try {
+    const result = await aiPost('/api/agent/plan/cancel', {});
+    $('planState').textContent = result.ok ? '计划已取消。' :
+      '取消失败：' + (result.error || 'unknown');
+    refreshAgentPanel();
+  } catch (error) {
+    $('planState').textContent = error.unauthorized ?
+      '控制码无效。' : '取消失败：网络异常。';
+  }
+}
+
+function normalizeParams(data) {
+  let list = Array.isArray(data) ? data : null;
+  if (!list && data) {
+    list = data.params || data.items || null;
+  }
+  if (!Array.isArray(list)) return [];
+  return list.map(item => ({
+    name: String((item && (item.name || item.id)) || ''),
+    value: item ? item.value : undefined,
+    min: item ? (item.min !== undefined ? item.min : item.minimum) : undefined,
+    max: item ? (item.max !== undefined ? item.max : item.maximum) : undefined,
+    def: item ? item.default : undefined,
+    type: (item && (item.type || item.unit)) || ''
+  })).filter(item => item.name);
+}
+
+function emptyParams(text) {
+  const box = $('paramList');
+  box.replaceChildren();
+  const empty = document.createElement('div');
+  empty.className = 'empty';
+  empty.textContent = text;
+  box.appendChild(empty);
+}
+
+async function refreshParams() {
+  try {
+    const list = normalizeParams(await aiGet('/api/params'));
+    $('paramCount').textContent = list.length + ' 项';
+    if (!list.length) {
+      emptyParams('设备未返回参数');
+      return;
+    }
+    const box = $('paramList');
+    box.replaceChildren();
+    for (const param of list) {
+      const row = document.createElement('div');
+      row.className = 'param-row';
+      const name = document.createElement('span');
+      name.className = 'param-name';
+      name.textContent = param.name;
+      const input = document.createElement('input');
+      input.type = 'number';
+      input.value = (param.value !== undefined && param.value !== null) ?
+        String(param.value) : '';
+      const range = document.createElement('span');
+      range.className = 'param-range';
+      range.textContent = '范围 ' +
+        (param.min !== undefined ? param.min : '?') + ' ~ ' +
+        (param.max !== undefined ? param.max : '?');
+      const type = document.createElement('span');
+      type.className = 'param-range';
+      type.textContent = (param.def !== undefined && param.def !== null) ?
+        ('默认 ' + param.def) : (param.type || 'int');
+      const setter = document.createElement('button');
+      setter.textContent = '设置';
+      setter.onclick = () => setParam(param.name, input.value);
+      row.append(name, input, range, type, setter);
+      box.appendChild(row);
+    }
+    $('paramState').textContent = '参数写入 C30D 后立即生效并保存到 Flash。';
+  } catch (error) {
+    $('paramState').textContent = error.unauthorized ?
+      '控制码无效。' : '参数读取失败。';
+  }
+}
+
+async function setParam(name, rawValue) {
+  const value = Number(rawValue);
+  if (rawValue === '' || !Number.isFinite(value)) {
+    $('paramState').textContent = '参数值必须是数字。';
+    return;
+  }
+  try {
+    const result = await aiPost('/api/params/set', {name, value});
+    $('paramState').textContent = result.ok ?
+      (name + ' 已设置为 ' + value) :
+      ('设置失败：' + (result.error || 'unknown'));
+    if (result.ok) refreshParams();
+  } catch (error) {
+    $('paramState').textContent = error.unauthorized ?
+      '控制码无效。' : '设置失败：网络异常。';
+  }
+}
+
+async function refreshNetwork() {
+  try {
+    const r = await fetch('/api/wifi/status', {cache:'no-store'});
+    const s = await r.json();
+    let state = s.mode === 'ap' ? '热点模式' : '终端模式';
+    if (s.setup_ap) state = '配置热点（STA失败回退）';
+    else if (s.station_connected) state = '终端已连接路由器';
+    else if (s.ap_active) state = '手动热点';
+    $('networkState').textContent =
+      `${state}\nIP：${s.ip || '--'}\n网址：${s.url || '--'}\n` +
+      `已保存 SSID：${s.saved_ssid || '未配置'}`;
+    $('wifi').textContent = s.station_connected ? 'Wi‑Fi 终端' :
+      s.setup_ap ? '配置热点' : s.ap_active ? '手动热点' : 'Wi‑Fi 连接中';
+    $('wifi').className = 'pill ' +
+      (s.station_connected ? 'on' : s.ap_active ? 'bad' : '');
+  } catch (_) {
+    $('networkState').textContent = '网络状态读取失败';
+  }
+}
+
+async function scanWifi() {
+  $('wifiList').textContent = '正在扫描...';
+  try {
+    const r = await fetch('/api/wifi/scan',
+      {cache:'no-store', headers:authHeaders()});
+    const data = await r.json();
+    const list = $('wifiList');
+    list.replaceChildren();
+    if (!data.ok || !data.networks || !data.networks.length) {
+      list.textContent = '未发现可用路由器';
+      return;
+    }
+    for (const item of data.networks) {
+      const button = document.createElement('button');
+      button.className = 'scan-item';
+      const name = document.createElement('span');
+      name.textContent = item.ssid || '(隐藏网络)';
+      const strength = document.createElement('small');
+      strength.textContent = item.rssi + ' dBm';
+      button.append(name, strength);
+      button.onclick = () => {
+        $('wifiSsid').value = item.ssid;
+        $('wifiPassword').focus();
+      };
+      list.appendChild(button);
+    }
+  } catch (_) {
+    $('wifiList').textContent = '扫描失败';
+  }
+}
+
+async function connectWifi() {
+  const ssid = $('wifiSsid').value.trim();
+  const password = $('wifiPassword').value;
+  if (!ssid) {
+    $('networkState').textContent = '请选择或输入 WiFi 名称';
+    return;
+  }
+  $('networkState').textContent = '正在保存并连接，成功后请访问 S31 新 IP...';
+  try {
+    const result = await postJson('/api/wifi/connect',
+      {ssid, password});
+    if (!result.ok) {
+      $('networkState').textContent = '连接请求失败：' +
+        (result.error || 'unknown');
+    }
+  } catch (_) {
+    $('networkState').textContent =
+      '连接中，当前热点可能断开；请在路由器下访问 S31 新 IP。';
+  }
+}
+
+async function setWifiMode(mode) {
+  try {
+    const result = await postJson('/api/wifi/mode', {mode});
+    if (!result.ok) {
+      $('networkState').textContent = '切换失败：' +
+        (result.error || 'unknown');
+    }
+    setTimeout(refreshNetwork, 800);
+  } catch (_) {}
+}
+
+async function forgetWifi() {
+  if (!confirm('确认删除 S31 保存的 WiFi 和密码？')) return;
+  try {
+    await postJson('/api/wifi/forget', {});
+    $('wifiSsid').value = '';
+    $('wifiPassword').value = '';
+    $('networkState').textContent = '已清除；S31 将进入配置热点模式。';
+  } catch (_) {}
+}
+
+function updateFaceTable(count, similarity) {
+  if (count === lastFaceCount && similarity === lastFaceSimilarity) return;
+  lastFaceCount = count;
+  lastFaceSimilarity = similarity;
+  const body = $('faceTable');
+  body.replaceChildren();
+  if (!count) {
+    const row = document.createElement('tr');
+    const cell = document.createElement('td');
+    cell.colSpan = 4;
+    cell.className = 'empty';
+    cell.textContent = '暂无登记人员';
+    row.appendChild(cell);
+    body.appendChild(row);
+    return;
+  }
+  for (let id = 1; id <= count; id++) {
+    const row = document.createElement('tr');
+    const idCell = document.createElement('td');
+    idCell.textContent = String(id).padStart(3, '0');
+    const nameCell = document.createElement('td');
+    nameCell.textContent = `人员 ${String(id).padStart(3, '0')}`;
+    const stateCell = document.createElement('td');
+    stateCell.className = 'ok';
+    stateCell.textContent = '已登记';
+    const similarityCell = document.createElement('td');
+    similarityCell.textContent = id === count && similarity ? `${similarity}%` : '--';
+    row.append(idCell, nameCell, stateCell, similarityCell);
+    body.appendChild(row);
+  }
+}
+
+async function refresh() {
+  try {
+    const r = await fetch('/api/status', {cache:'no-store'});
+    const s = await r.json();
+    const wasCameraReady = cameraReady;
+    cameraReady = Boolean(s.camera && s.camera.ready &&
+                          s.camera.streaming);
+    if (cameraReady && !wasCameraReady) {
+      refreshFrames();
+    }
+    pill($('mode'), MODE_ZH[s.mode] || s.mode,
+      s.mode !== 'ESTOP', s.mode === 'ESTOP');
+    pill($('face'), !s.face.ready ? '人脸加载中' :
+      s.face.recognized ? '人员 ' + String(s.face.id).padStart(3, '0') :
+      s.face.found ? '陌生人' : '未检测到人脸',
+      s.face.ready, !s.face.ready);
+    const obj = s.objects || {ready:false, count:0, items:[]};
+    pill($('objectsState'), !obj.ready ? '物体模型加载中' :
+      '物体 ' + obj.count + ' 个', obj.ready, !obj.ready);
+    pill($('uart'), s.motion.online ? 'C30D 在线' : 'C30D 离线',
+      s.motion.online, !s.motion.online);
+    pill($('wifi'), s.wifi.station ? 'Wi‑Fi 终端' :
+      s.wifi.setup ? '配置热点' :
+      s.wifi.ap ? (s.wifi.client ? '热点已连接' : '手动热点') :
+      'Wi‑Fi 连接中',
+      s.wifi.station, !s.wifi.station && !s.wifi.ap);
+
+    $('fps').textContent = s.vision.fps.toFixed(1);
+    $('error').textContent = s.motion.line_enabled ?
+      s.motion.line_error : '待机';
+    $('objectCount').textContent = obj.ready ? obj.count + ' 个' : '加载中';
+    $('distance').textContent = s.motion.distance === 65535 ? '--' :
+      s.motion.distance + ' 厘米';
+    $('url').textContent = s.wifi.url;
+
+    const objectBox = $('objects');
+    objectBox.replaceChildren();
+    if (!obj.ready) {
+      objectBox.textContent = 'COCO 物体模型加载中...';
+    } else if (!obj.count) {
+      objectBox.textContent = '当前没有达到 60% 置信度的物体';
+    } else {
+      for (const item of obj.items) {
+        const chip = document.createElement('span');
+        chip.className = 'object-chip';
+        chip.textContent = `${item.name} ${item.confidence}%`;
+        objectBox.appendChild(chip);
+      }
+    }
+
+    $('threshold').value = s.vision.threshold;
+    $('thresholdValue').textContent = s.vision.threshold;
+    $('faceCount').textContent = `登记人数：${s.face.count}`;
+    $('faceStatus').textContent = s.face.message;
+    updateFaceTable(s.face.count, s.face.similarity);
+    $('details').textContent =
+      `摄像头：${s.camera.streaming ? '实时画面' : '未就绪'}  ` +
+      `视觉：${s.vision.ok ? '运行中' : '待机'}  ` +
+      `CCD置信度：${s.motion.ccd_confidence}  ` +
+      `CCD中心：${s.motion.ccd_center}\n` +
+      `运动状态：${s.motion.state}  ` +
+      `故障：${faultText(s.motion.faults)} (${s.motion.faults})  ` +
+      `电池：${s.motion.battery} 毫伏\n` +
+      `融合巡线：${s.motion.line_enabled ? '运行' : '待机'}  ` +
+      `CCD源：${s.motion.line_source}  置信度：${s.motion.ccd_confidence}\n` +
+      `线误差：${s.motion.line_error}  倒放进度：${s.motion.rewind_progress}%\n` +
+      `四路传感器：${s.motion.line_bits.toString(2).padStart(4, '0')}\n` +
+      `IMU陀螺：${s.motion.gyro_ddps.join(' / ')} 0.1°/s  ` +
+      `加速度：${s.motion.accel_mg.join(' / ')} mg\n` +
+      `编码器增量：${s.motion.motor.encoder.join(' / ')}  ` +
+      `PWM：${s.motion.motor.pwm.join(' / ')}\n` +
+      `目标速度：${s.motion.motor.target_mm_s.join(' / ')} mm/s  ` +
+      `实际云台：${s.motion.motor.pan_flags & 1 ? s.motion.motor.pan + '°' : '位置未知'}${s.motion.motor.pan_flags & 4 ? '（上电回位）' : ''}  ` +
+      `控制源：${s.motion.motor.source}\n` +
+      `输出 左/右：${s.out.left} / ${s.out.right}  ` +
+      `云台：${s.out.pan}°\n` +
+      `固件：${s.fw}`;
+  } catch (e) {
+    pill($('mode'), '连接中断', false, true);
+  }
+}
+
+function refreshFrames() {
+  if (!cameraReady) {
+    $('cameraWrap').classList.add('missing');
+    $('faceCameraWrap').classList.add('missing');
+    return;
+  }
+  const stamp = Date.now();
+  $('camera').src = '/frame.bmp?t=' + stamp;
+  if ((++frameTick & 1) === 0) {
+    $('faceCamera').src = '/frame.bmp?t=' + stamp;
+  }
+}
+
+$('camera').addEventListener('load', () =>
+  $('cameraWrap').classList.remove('missing'));
+$('camera').addEventListener('error', () =>
+  $('cameraWrap').classList.add('missing'));
+$('faceCamera').addEventListener('load', () =>
+  $('faceCameraWrap').classList.remove('missing'));
+$('faceCamera').addEventListener('error', () =>
+  $('faceCameraWrap').classList.add('missing'));
+
+setInterval(refresh, 700);
+setInterval(refreshFrames, 1000);
+setInterval(refreshNetwork, 1500);
+setInterval(refreshAgentPanel, 1000);
+setInterval(refreshAgentLog, 1000);
+refresh();
+refreshFrames();
+refreshNetwork();
+refreshAgentStatus();
+refreshAgentPanel();
+refreshAgentLog();
+refreshParams();
+if (controlToken) {
+  $('authState').textContent = '本标签页已载入控制码。';
+  startAgentPolling();
+}
+</script>
+</body>
+</html>
